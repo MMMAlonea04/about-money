@@ -221,21 +221,33 @@
         <!-- Receipt Image Upload Section -->
         <div class="receipt-upload-box">
           <label class="form-label font-bold">📸 Ảnh Chụp Hóa Đơn / Biên Lai (Cho Mẹ xem)</label>
-          <p class="form-hint">Hệ thống sẽ tự động tối ưu hóa dung lượng ảnh để mẹ mở xem nhanh không bị tốn 4G.</p>
+          <p class="form-hint">Hệ thống sẽ tự động tối ưu dung lượng ảnh để mẹ mở xem nhanh không tốn 4G.</p>
           
-          <div class="upload-dropzone" id="uploadDropzone">
-            <input type="file" id="receiptFileInput" accept="image/*" capture="environment" class="file-hidden">
-            <div id="uploadPlaceholder" class="upload-placeholder">
-              <span class="upload-icon">📷</span>
-              <span class="upload-text"><strong>Bấm vào đây để Chụp ảnh hoặc Chọn ảnh hóa đơn</strong></span>
-              <span class="text-muted upload-sub">Hỗ trợ JPG, PNG, WebP</span>
-            </div>
-            <div id="uploadPreview" class="upload-preview hidden">
-              <img id="previewImage" src="" alt="Hóa đơn xem trước">
-              <div class="preview-actions">
-                <span id="previewInfo" class="preview-size-badge"></span>
-                <button type="button" id="btnRemoveImage" class="btn btn-sm btn-danger">Xóa ảnh</button>
+          <input type="file" id="receiptFileInput" accept="image/*" class="file-hidden">
+          <input type="file" id="receiptCameraInput" accept="image/*" capture="environment" class="file-hidden">
+
+          <div class="upload-options" id="uploadOptions">
+            <button type="button" id="btnChooseGallery" class="upload-opt-btn">
+              <span class="upload-btn-icon">🖼️</span>
+              <div class="upload-opt-text">
+                <strong>Tải ảnh từ Thư viện</strong>
+                <span class="upload-sub">Chọn ảnh hóa đơn có sẵn trong máy</span>
               </div>
+            </button>
+            <button type="button" id="btnChooseCamera" class="upload-opt-btn">
+              <span class="upload-btn-icon">📷</span>
+              <div class="upload-opt-text">
+                <strong>Chụp ảnh Camera</strong>
+                <span class="upload-sub">Chụp ngay biên lai trực tiếp</span>
+              </div>
+            </button>
+          </div>
+
+          <div id="uploadPreview" class="upload-preview hidden">
+            <img id="previewImage" src="" alt="Hóa đơn xem trước">
+            <div class="preview-actions">
+              <span id="previewInfo" class="preview-size-badge"></span>
+              <button type="button" id="btnRemoveImage" class="btn btn-sm btn-danger">Xóa ảnh</button>
             </div>
           </div>
         </div>

@@ -103,8 +103,9 @@ const el = {
   expenseDate: document.getElementById("expenseDate"),
   expenseNote: document.getElementById("expenseNote"),
   receiptFileInput: document.getElementById("receiptFileInput"),
-  uploadDropzone: document.getElementById("uploadDropzone"),
-  uploadPlaceholder: document.getElementById("uploadPlaceholder"),
+  receiptCameraInput: document.getElementById("receiptCameraInput"),
+  btnChooseGallery: document.getElementById("btnChooseGallery"),
+  btnChooseCamera: document.getElementById("btnChooseCamera"),
   uploadPreview: document.getElementById("uploadPreview"),
   previewImage: document.getElementById("previewImage"),
   previewInfo: document.getElementById("previewInfo"),
@@ -714,16 +715,9 @@ function setupEventListeners() {
   el.btnOpenAddAllowance.addEventListener("click", openAllowanceModal);
   el.btnTabAddAllowance.addEventListener("click", openAllowanceModal);
 
-  // File Upload Dropzone
-  el.uploadDropzone.addEventListener("click", (e) => {
-    if (e.target.id === "btnRemoveImage") return;
-    el.receiptFileInput.click();
-  });
-
-  el.receiptFileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+  // File Upload Handlers (Gallery vs Camera)
+  async function processSelectedFile(file) {
     if (!file) return;
-
     try {
       showToast("⏳ Đang xử lý và tối ưu ảnh hóa đơn...");
       const result = await compressImage(file, 1280, 0.82);
@@ -731,24 +725,49 @@ function setupEventListeners() {
 
       el.previewImage.src = result.dataUrl;
       el.previewInfo.textContent = `${result.originalSizeKb} KB ➔ ${result.compressedSizeKb} KB (Đã tối ưu)`;
-      el.uploadPlaceholder.classList.add("hidden");
-      el.uploadPreview.classList.remove("hidden");
+      if (el.uploadPreview) el.uploadPreview.classList.remove("hidden");
     } catch (err) {
       alert("Không thể đọc ảnh: " + err.message);
     }
-  });
+  }
 
-  el.btnRemoveImage.addEventListener("click", (e) => {
-    e.stopPropagation();
-    clearReceiptPreview();
-  });
+  if (el.btnChooseGallery) {
+    el.btnChooseGallery.addEventListener("click", () => {
+      if (el.receiptFileInput) el.receiptFileInput.click();
+    });
+  }
+
+  if (el.btnChooseCamera) {
+    el.btnChooseCamera.addEventListener("click", () => {
+      if (el.receiptCameraInput) el.receiptCameraInput.click();
+    });
+  }
+
+  if (el.receiptFileInput) {
+    el.receiptFileInput.addEventListener("change", (e) => {
+      processSelectedFile(e.target.files[0]);
+    });
+  }
+
+  if (el.receiptCameraInput) {
+    el.receiptCameraInput.addEventListener("change", (e) => {
+      processSelectedFile(e.target.files[0]);
+    });
+  }
+
+  if (el.btnRemoveImage) {
+    el.btnRemoveImage.addEventListener("click", (e) => {
+      e.stopPropagation();
+      clearReceiptPreview();
+    });
+  }
 
   function clearReceiptPreview() {
     state.pendingReceiptBase64 = null;
-    el.receiptFileInput.value = "";
-    el.previewImage.src = "";
-    el.uploadPlaceholder.classList.remove("hidden");
-    el.uploadPreview.classList.add("hidden");
+    if (el.receiptFileInput) el.receiptFileInput.value = "";
+    if (el.receiptCameraInput) el.receiptCameraInput.value = "";
+    if (el.previewImage) el.previewImage.src = "";
+    if (el.uploadPreview) el.uploadPreview.classList.add("hidden");
   }
 
   // Handle Add Expense Form Submit
