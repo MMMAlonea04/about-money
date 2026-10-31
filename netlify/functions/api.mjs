@@ -147,6 +147,20 @@ export default async (req, context) => {
     return true;
   }
 
+  // --- ROUTE: POST /reset --- (Reset all records)
+  if (pathname === "/reset" && req.method === "POST") {
+    try {
+      const body = await req.json().catch(() => ({}));
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Vui lòng nhập đúng mã PIN." }, 401);
+      }
+      await saveData({ allowances: [], expenses: [] });
+      return jsonResponse({ success: true, message: "Đã xóa toàn bộ dữ liệu thành công" });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
   // --- ROUTE: POST /allowance --- (Add allowance from Mom)
   if (pathname === "/allowance" && req.method === "POST") {
     try {

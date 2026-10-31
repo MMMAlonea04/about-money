@@ -28,52 +28,10 @@ let state = {
   isApiMode: false
 };
 
-// Initial Demo Seed if LocalStorage is totally blank
+// Initial Data if blank
 const INITIAL_DEMO_DATA = {
-  allowances: [
-    {
-      id: "alw_demo_1",
-      amount: 4000000,
-      date: "2026-10-05",
-      note: "Mẹ gửi tiền sinh hoạt & tiền trọ tháng 10",
-      createdAt: "2026-10-05T08:00:00.000Z"
-    }
-  ],
-  expenses: [
-    {
-      id: "exp_demo_1",
-      title: "Tiền phòng trọ + Điện nước tháng 10",
-      amount: 1850000,
-      category: "Tiền nhà / Điện nước",
-      date: "2026-10-06",
-      note: "Tiền phòng 1.500k, điện nước 350k",
-      receiptId: null,
-      receiptDataUrl: createDemoReceiptSvg("HÓA ĐƠN TIỀN TRỌ", "1.850.000 đ", "06/10/2026"),
-      createdAt: "2026-10-06T10:00:00.000Z"
-    },
-    {
-      id: "exp_demo_2",
-      title: "Mua giáo trình & sách tham khảo kỳ mới",
-      amount: 280000,
-      category: "Học tập",
-      date: "2026-10-12",
-      note: "Nhà sách Fahasa",
-      receiptId: null,
-      receiptDataUrl: createDemoReceiptSvg("BIÊN LAI FAHASA", "280.000 đ", "12/10/2026"),
-      createdAt: "2026-10-12T15:30:00.000Z"
-    },
-    {
-      id: "exp_demo_3",
-      title: "Đi siêu thị mua gạo, gia vị & thức ăn 2 tuần",
-      amount: 460000,
-      category: "Ăn uống",
-      date: "2026-10-15",
-      note: "Bách Hóa Xanh - Gạo ST25, dầu ăn, trứng, rau thịt",
-      receiptId: null,
-      receiptDataUrl: createDemoReceiptSvg("BÁCH HÓA XANH", "460.000 đ", "15/10/2026"),
-      createdAt: "2026-10-15T18:45:00.000Z"
-    }
-  ]
+  allowances: [],
+  expenses: []
 };
 
 // Generate a tiny placeholder SVG for demo receipts
@@ -164,6 +122,7 @@ const el = {
   lightboxTitle: document.getElementById("lightboxTitle"),
   lightboxDownload: document.getElementById("lightboxDownload"),
   lightboxClose: document.getElementById("lightboxClose"),
+  btnResetAllData: document.getElementById("btnResetAllData"),
   btnShareSummary: document.getElementById("btnShareSummary"),
   toastContainer: document.getElementById("toastContainer")
 };
@@ -975,6 +934,43 @@ function setupEventListeners() {
       prompt("Sao chép nội dung gửi Zalo:", reportText);
     }
   });
+
+  // Reset All Data button
+  if (el.btnResetAllData) {
+    el.btnResetAllData.addEventListener("click", async () => {
+      const confirmed = confirm(
+        "⚠️ CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu chi tiêu và tiền trợ cấp không?\n\nThao tác này sẽ xóa sạch dữ liệu để bạn bắt đầu ghi sổ từ đầu."
+      );
+      if (!confirmed) return;
+
+      if (state.isApiMode) {
+        try {
+          const res = await fetch("/api/reset", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-admin-pin": state.adminPin
+            },
+            body: JSON.stringify({ pin: state.adminPin })
+          });
+          const json = await res.json();
+          if (!json.success) {
+            alert(json.error || "Không thể reset dữ liệu trên máy chủ");
+            return;
+          }
+        } catch (err) {
+          alert("Lỗi kết nối máy chủ: " + err.message);
+          return;
+        }
+      }
+
+      state.allowances = [];
+      state.expenses = [];
+      saveLocalData();
+      renderAll();
+      showToast("🗑️ Đã xóa sạch toàn bộ dữ liệu. Sổ chi tiêu đã sẵn sàng từ đầu!");
+    });
+  }
 }
 
 // App Initialization
