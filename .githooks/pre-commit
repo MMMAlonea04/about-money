@@ -1,0 +1,29 @@
+#!/bin/sh
+# graphify: rebuild graphify-out/graph.json before every commit, so the graph
+# that ships with the code matches the code in the same commit.
+# Skip once with: GRAPHIFY_SKIP_HOOK=1 git commit ...
+set -u
+
+[ "${GRAPHIFY_SKIP_HOOK:-0}" = 1 ] && exit 0
+
+# Nothing staged outside the graph itself means there is nothing to refresh.
+if git diff --cached --quiet -- . ':(exclude)graphify-out/graph.json'; then
+	exit 0
+fi
+
+# GUI git clients may not inherit the shell PATH.
+command -v graphify >/dev/null 2>&1 || PATH="$PATH:$HOME/.local/bin"
+
+if [ -f graphify-out/graph.json ]; then
+	# Graph exists: keep it in sync with the staged code, and block on failure.
+	PYTHONHASHSEED=0 graphify update . || exit 1
+	git add graphify-out/graph.json || exit 1
+else
+	# First commit: build from code only (local AST, no LLM). A docs-only or
+	# still-empty repo produces no nodes, which must not block the commit.
+	if PYTHONHASHSEED=0 graphify extract . --code-only; then
+		git add graphify-out/graph.json || exit 1
+	else
+		echo "[graphify] no code graph yet (docs-only or empty repo); committing without graph.json" >&2
+	fi
+fi

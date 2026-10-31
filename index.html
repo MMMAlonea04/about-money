@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sổ Chi Tiêu & Hóa Đơn Trợ Cấp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Bar -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-icon">🧾</div>
+        <div>
+          <h1 class="brand-title">Sổ Chi Tiêu & Hóa Đơn</h1>
+          <p class="brand-subtitle">Minh bạch từng khoản tiền mẹ trợ cấp</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button id="btnShareSummary" class="btn btn-outline btn-sm" title="Sao chép báo cáo gửi Zalo cho Mẹ">
+          <span>📲 Báo cáo Zalo</span>
+        </button>
+        <button id="btnAuthToggle" class="btn btn-secondary btn-sm">
+          <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Admin Quick Actions (Visible when unlocked) -->
+    <section id="adminBanner" class="admin-banner hidden">
+      <div class="admin-banner-content">
+        <span class="badge badge-success">✨ Đang mở khóa Quản lý</span>
+        <span class="admin-hint">Bạn có thể thêm khoản chi mới, chụp hóa đơn hoặc ghi nhận đợt mẹ gửi tiền.</span>
+      </div>
+      <div class="admin-actions">
+        <button id="btnOpenAddExpense" class="btn btn-primary">
+          <span>➕ Thêm Khoản Chi / Hóa Đơn</span>
+        </button>
+        <button id="btnOpenAddAllowance" class="btn btn-emerald">
+          <span>💰 Thêm Đợt Mẹ Gửi Tiền</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Summary Cards -->
+    <section class="summary-grid">
+      <div class="card stat-card card-allowance">
+        <div class="stat-header">
+          <span class="stat-icon">💰</span>
+          <span class="stat-title">Mẹ trợ cấp</span>
+        </div>
+        <div class="stat-value text-emerald" id="totalAllowance">0 ₫</div>
+        <div class="stat-footer" id="allowanceCount">0 đợt gửi tiền</div>
+      </div>
+
+      <div class="card stat-card card-expense">
+        <div class="stat-header">
+          <span class="stat-icon">🛒</span>
+          <span class="stat-title">Tổng đã chi tiêu</span>
+        </div>
+        <div class="stat-value text-danger" id="totalExpense">0 ₫</div>
+        <div class="stat-footer" id="expenseCount">0 khoản chi (0 hóa đơn ảnh)</div>
+      </div>
+
+      <div class="card stat-card card-balance">
+        <div class="stat-header">
+          <span class="stat-icon">🏦</span>
+          <span class="stat-title">Số dư còn lại</span>
+        </div>
+        <div class="stat-value" id="balanceAmount">0 ₫</div>
+        <div class="stat-footer" id="balanceStatus">Đang tính toán...</div>
+      </div>
+    </section>
+
+    <!-- Category Breakdown Bar -->
+    <section class="card category-overview">
+      <div class="section-header">
+        <h2 class="section-title">Phân Bổ Chi Tiêu</h2>
+        <span class="text-muted" id="categoryStatsSummary">0 danh mục</span>
+      </div>
+      <div class="category-bars" id="categoryBars">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Tabs -->
+      <div class="tab-header">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tabExpenses">
+            🧾 Danh Sách Hóa Đơn & Chi Tiêu (<span id="tabExpenseCount">0</span>)
+          </button>
+          <button class="tab-btn" data-tab="tabAllowances">
+            💌 Lịch Sử Mẹ Gửi Tiền (<span id="tabAllowanceCount">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab 1: Expenses & Receipts -->
+      <div id="tabExpenses" class="tab-pane active">
+        <!-- Filter and Search Bar -->
+        <div class="filter-bar card">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Tìm theo tên món, ghi chú, nơi mua...">
+          </div>
+          <div class="filter-controls">
+            <select id="monthFilter" class="select-control">
+              <option value="all">📅 Tất cả thời gian</option>
+            </select>
+            <select id="categoryFilter" class="select-control">
+              <option value="all">🏷️ Tất cả danh mục</option>
+            </select>
+            <label class="checkbox-label">
+              <input type="checkbox" id="onlyReceiptsFilter">
+              <span>Chỉ hiện có hóa đơn</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="expenses-list" id="expensesList">
+          <div class="empty-state">
+            <span class="empty-icon">⏳</span>
+            <p>Đang tải dữ liệu chi tiêu...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Allowances History -->
+      <div id="tabAllowances" class="tab-pane">
+        <div class="allowances-card card">
+          <div class="section-header">
+            <h2 class="section-title">Danh Sách Các Đợt Mẹ Cấp Tiền</h2>
+            <button id="btnTabAddAllowance" class="btn btn-sm btn-outline admin-only hidden">
+              ➕ Thêm đợt gửi tiền
+            </button>
+          </div>
+          <div class="allowances-list" id="allowancesList">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>Sổ chi tiêu gia đình • Dữ liệu được đồng bộ trực tiếp • Dễ dàng đối soát hóa đơn</p>
+    </footer>
+  </div>
+
+  <!-- MODAL: PIN Login / Unlock -->
+  <div id="pinModal" class="modal-backdrop">
+    <div class="modal card">
+      <div class="modal-header">
+        <h3 class="modal-title">🔐 Mở Khóa Chế Độ Quản Lý</h3>
+        <button class="btn-close" data-close="pinModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Nhập mã PIN để có quyền thêm, chỉnh sửa hoặc xóa các khoản chi tiêu và hóa đơn.
+        </p>
+        <div class="form-group">
+          <label for="pinInput" class="form-label">Mã PIN bảo mật:</label>
+          <input type="password" id="pinInput" class="form-input" placeholder="Nhập mã PIN..." maxlength="20" autofocus>
+          <small class="form-hint">Mã mặc định ban đầu là: <strong>1234</strong> (có thể đổi qua biến môi trường Netlify)</small>
+        </div>
+        <div id="pinError" class="alert alert-danger hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="pinModal">Hủy</button>
+        <button id="btnSubmitPin" class="btn btn-primary">Mở Khóa Ngay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Expense & Receipt -->
+  <div id="addExpenseModal" class="modal-backdrop">
+    <div class="modal modal-lg card">
+      <div class="modal-header">
+        <h3 class="modal-title">🧾 Thêm Khoản Chi Tiêu & Hóa Đơn Mới</h3>
+        <button class="btn-close" data-close="addExpenseModal">&times;</button>
+      </div>
+      <form id="addExpenseForm" class="modal-body">
+        <div class="form-row">
+          <div class="form-group col-8">
+            <label class="form-label">Tên khoản chi / Món đồ đã mua <span class="text-danger">*</span></label>
+            <input type="text" id="expenseTitle" class="form-input" placeholder="Ví dụ: Đi siêu thị mua thực phẩm tuần, Tiền điện tháng 10..." required>
+          </div>
+          <div class="form-group col-4">
+            <label class="form-label">Số tiền (VNĐ) <span class="text-danger">*</span></label>
+            <input type="number" id="expenseAmount" class="form-input" placeholder="Ví dụ: 250000" min="1000" step="1000" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label class="form-label">Danh mục chi tiêu</label>
+            <select id="expenseCategory" class="form-input">
+              <!-- Rendered via JS -->
+            </select>
+          </div>
+          <div class="form-group col-6">
+            <label class="form-label">Ngày chi</label>
+            <input type="date" id="expenseDate" class="form-input" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ghi chú chi tiết (nếu có)</label>
+          <input type="text" id="expenseNote" class="form-input" placeholder="Ví dụ: Mua thịt, trứng, rau ở Bách Hóa Xanh...">
+        </div>
+
+        <!-- Receipt Image Upload Section -->
+        <div class="receipt-upload-box">
+          <label class="form-label font-bold">📸 Ảnh Chụp Hóa Đơn / Biên Lai (Cho Mẹ xem)</label>
+          <p class="form-hint">Hệ thống sẽ tự động tối ưu hóa dung lượng ảnh để mẹ mở xem nhanh không bị tốn 4G.</p>
+          
+          <div class="upload-dropzone" id="uploadDropzone">
+            <input type="file" id="receiptFileInput" accept="image/*" capture="environment" class="file-hidden">
+            <div id="uploadPlaceholder" class="upload-placeholder">
+              <span class="upload-icon">📷</span>
+              <span class="upload-text"><strong>Bấm vào đây để Chụp ảnh hoặc Chọn ảnh hóa đơn</strong></span>
+              <span class="text-muted upload-sub">Hỗ trợ JPG, PNG, WebP</span>
+            </div>
+            <div id="uploadPreview" class="upload-preview hidden">
+              <img id="previewImage" src="" alt="Hóa đơn xem trước">
+              <div class="preview-actions">
+                <span id="previewInfo" class="preview-size-badge"></span>
+                <button type="button" id="btnRemoveImage" class="btn btn-sm btn-danger">Xóa ảnh</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="expenseFormError" class="alert alert-danger hidden"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="addExpenseModal">Đóng</button>
+          <button type="submit" id="btnSaveExpense" class="btn btn-primary">Lưu Khoản Chi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Allowance from Mom -->
+  <div id="addAllowanceModal" class="modal-backdrop">
+    <div class="modal card">
+      <div class="modal-header">
+        <h3 class="modal-title">💰 Ghi Nhận Tiền Mẹ Gửi Trợ Cấp</h3>
+        <button class="btn-close" data-close="addAllowanceModal">&times;</button>
+      </div>
+      <form id="addAllowanceForm" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Số tiền mẹ chuyển (VNĐ) <span class="text-danger">*</span></label>
+          <input type="number" id="allowanceAmount" class="form-input" placeholder="Ví dụ: 3000000" min="10000" step="10000" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ngày nhận tiền</label>
+          <input type="date" id="allowanceDate" class="form-input" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ghi chú / Lời dặn của mẹ</label>
+          <input type="text" id="allowanceNote" class="form-input" placeholder="Ví dụ: Mẹ gửi tiền sinh hoạt tháng 11...">
+        </div>
+
+        <div id="allowanceFormError" class="alert alert-danger hidden"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="addAllowanceModal">Hủy</button>
+          <button type="submit" id="btnSaveAllowance" class="btn btn-emerald">Lưu Vào Sổ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Lightbox / View Full Receipt Image -->
+  <div id="lightboxModal" class="lightbox-backdrop">
+    <div class="lightbox-container">
+      <div class="lightbox-toolbar">
+        <span id="lightboxTitle" class="lightbox-title">Hóa đơn chi tiết</span>
+        <div class="lightbox-btns">
+          <a id="lightboxDownload" href="#" target="_blank" download class="btn btn-sm btn-outline text-white">Mở ảnh gốc ↗</a>
+          <button id="lightboxClose" class="lightbox-close">&times;</button>
+        </div>
+      </div>
+      <div class="lightbox-content">
+        <img id="lightboxImage" src="" alt="Ảnh hóa đơn đầy đủ">
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

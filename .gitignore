@@ -1,0 +1,6 @@
+node_modules/
+.netlify/
+.env
+.env.*
+graphify-out/*
+!graphify-out/graph.json
