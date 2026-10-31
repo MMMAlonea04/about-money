@@ -1,7 +1,27 @@
 import { getStore } from "@netlify/blobs";
 
-// Default PIN if environment variable is not defined
-const ADMIN_PIN = process.env.ADMIN_PIN || "1234";
+function getAdminPin() {
+  try {
+    if (typeof Netlify !== "undefined" && Netlify?.env?.get) {
+      const pin = Netlify.env.get("ADMIN_PIN");
+      if (pin && String(pin).trim()) return String(pin).trim();
+    }
+  } catch {}
+  if (typeof process !== "undefined" && process?.env?.ADMIN_PIN && String(process.env.ADMIN_PIN).trim()) {
+    return String(process.env.ADMIN_PIN).trim();
+  }
+  return ""; // Tuyet doi khong dung 1234, chi dung dung bien moi truong ADMIN_PIN tren Netlify
+}
+
+function verifyPin(providedPin) {
+  const configuredPin = getAdminPin();
+  if (!configuredPin) {
+    console.warn("Chưa cấu hình biến môi trường ADMIN_PIN trên Netlify!");
+    return false;
+  }
+  const inputPin = String(providedPin || "").trim();
+  return inputPin === configuredPin;
+}
 
 const DEFAULT_CATEGORIES = [
   "Ăn uống",
@@ -22,10 +42,6 @@ function jsonResponse(data, status = 200) {
       "Access-Control-Allow-Headers": "Content-Type, x-admin-pin"
     }
   });
-}
-
-function verifyPin(providedPin) {
-  return String(providedPin || "").trim() === String(ADMIN_PIN).trim();
 }
 
 async function getDataStore() {

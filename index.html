@@ -25,12 +25,12 @@
           <span>📲 Báo cáo Zalo</span>
         </button>
         <button id="btnAuthToggle" class="btn btn-secondary btn-sm">
-          <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem</span>
+          <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem (Mẹ)</span>
         </button>
       </div>
     </header>
 
-    <!-- Admin Quick Actions (Visible when unlocked) -->
+    <!-- Admin Quick Actions (Visible when unlocked with PIN) -->
     <section id="adminBanner" class="admin-banner hidden">
       <div class="admin-banner-content">
         <span class="badge badge-success">✨ Đang mở khóa Quản lý</span>
@@ -165,12 +165,12 @@
       </div>
       <div class="modal-body">
         <p class="modal-desc">
-          Nhập mã PIN để có quyền thêm, chỉnh sửa hoặc xóa các khoản chi tiêu và hóa đơn.
+          Nhập mật khẩu quản trị để có quyền thêm, chỉnh sửa hoặc xóa các khoản chi tiêu và hóa đơn.
         </p>
         <div class="form-group">
-          <label for="pinInput" class="form-label">Mã PIN bảo mật:</label>
-          <input type="password" id="pinInput" class="form-input" placeholder="Nhập mã PIN..." maxlength="20" autofocus>
-          <small class="form-hint">Mã mặc định ban đầu là: <strong>1234</strong> (có thể đổi qua biến môi trường Netlify)</small>
+          <label for="pinInput" class="form-label">Mật khẩu quản trị:</label>
+          <input type="password" id="pinInput" class="form-input" placeholder="Nhập mật khẩu quản trị..." maxlength="50" autofocus>
+          <small class="form-hint">Mật khẩu được cài đặt trong biến môi trường <code>ADMIN_PIN</code> trên Netlify.</small>
         </div>
         <div id="pinError" class="alert alert-danger hidden"></div>
       </div>

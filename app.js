@@ -252,13 +252,14 @@ async function unlockWithPin(pin) {
         setAdminLoggedIn(pin);
         return true;
       }
+      return false;
     } catch (err) {
-      console.warn("Backend pin verification failed, verifying locally:", err);
+      console.warn("Backend pin verification failed:", err);
     }
   }
 
-  // Local PIN fallback
-  if (pin === "1234" || (state.adminPin && pin === state.adminPin)) {
+  // Khong co mat khau 1234 mac dinh, chi chap nhan mat khau qua API hoac da luu truoc do
+  if (state.adminPin && pin === state.adminPin) {
     setAdminLoggedIn(pin);
     return true;
   }
@@ -650,38 +651,48 @@ function setupEventListeners() {
     if (e.target === el.lightboxModal) el.lightboxModal.classList.remove("show");
   });
 
-  // Auth Toggle button
-  el.authToggle.addEventListener("click", () => {
-    if (state.isAdmin) {
-      if (confirm("Chuyển về chế độ chỉ xem của Mẹ?")) {
-        logoutAdmin();
+  // Auth Toggle button (Chế độ xem Mẹ <-> Quản lý)
+  if (el.authToggle) {
+    el.authToggle.addEventListener("click", () => {
+      if (state.isAdmin) {
+        if (confirm("Chuyển về chế độ chỉ xem của Mẹ?")) {
+          logoutAdmin();
+        }
+      } else {
+        el.pinInput.value = "";
+        el.pinError.classList.add("hidden");
+        openModal(el.pinModal);
+        setTimeout(() => el.pinInput.focus(), 100);
       }
-    } else {
-      el.pinInput.value = "";
-      el.pinError.classList.add("hidden");
-      openModal(el.pinModal);
-      setTimeout(() => el.pinInput.focus(), 100);
-    }
-  });
+    });
+  }
 
   // Submit PIN
-  el.btnSubmitPin.addEventListener("click", async () => {
-    const pin = el.pinInput.value.trim();
-    if (!pin) {
-      el.pinError.textContent = "Vui lòng nhập mã PIN!";
-      el.pinError.classList.remove("hidden");
-      return;
-    }
-    const ok = await unlockWithPin(pin);
-    if (!ok) {
-      el.pinError.textContent = "Mã PIN không chính xác! Hãy thử lại.";
-      el.pinError.classList.remove("hidden");
-    }
-  });
+  if (el.btnSubmitPin) {
+    el.btnSubmitPin.addEventListener("click", async () => {
+      const pin = el.pinInput.value.trim();
+      if (!pin) {
+        el.pinError.textContent = "Vui lòng nhập mật khẩu quản trị!";
+        el.pinError.classList.remove("hidden");
+        return;
+      }
+      el.btnSubmitPin.disabled = true;
+      el.btnSubmitPin.textContent = "Đang kiểm tra...";
+      const ok = await unlockWithPin(pin);
+      el.btnSubmitPin.disabled = false;
+      el.btnSubmitPin.textContent = "Mở Khóa Ngay";
+      if (!ok) {
+        el.pinError.textContent = "Mật khẩu không chính xác! Hãy kiểm tra lại biến ADMIN_PIN trên Netlify.";
+        el.pinError.classList.remove("hidden");
+      }
+    });
+  }
 
-  el.pinInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") el.btnSubmitPin.click();
-  });
+  if (el.pinInput) {
+    el.pinInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") el.btnSubmitPin.click();
+    });
+  }
 
   // Open Add Expense Modal
   el.btnOpenAddExpense.addEventListener("click", () => {
