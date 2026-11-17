@@ -101,6 +101,9 @@
           <button class="tab-btn" data-tab="tabAllowances">
             💌 Lịch Sử Mẹ Gửi Tiền (<span id="tabAllowanceCount">0</span>)
           </button>
+          <button class="tab-btn" data-tab="tabEditHistory">
+            🕘 Lịch Sử Sửa (<span id="tabEditHistoryCount">0</span>)
+          </button>
         </div>
       </div>
 
@@ -149,6 +152,22 @@
           </div>
         </div>
       </div>
+
+      <!-- Tab 3: Edit History -->
+      <div id="tabEditHistory" class="tab-pane">
+        <div class="edits-card card">
+          <div class="section-header">
+            <h2 class="section-title">Lịch Sử Chỉnh Sửa Khoản Chi</h2>
+            <span class="text-muted" id="editHistorySummary">0 lần sửa</span>
+          </div>
+          <p class="form-hint" style="margin-bottom:0.85rem">
+            Mỗi khoản chi chỉ được sửa 1 lần. Hóa đơn và thông tin cũ vẫn được giữ lại ở đây để đối soát.
+          </p>
+          <div class="edit-history-list" id="editHistoryList">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </div>
     </main>
 
     <footer class="app-footer">
@@ -185,10 +204,14 @@
   <div id="addExpenseModal" class="modal-backdrop">
     <div class="modal modal-lg card">
       <div class="modal-header">
-        <h3 class="modal-title">🧾 Thêm Khoản Chi Tiêu & Hóa Đơn Mới</h3>
+        <h3 class="modal-title" id="expenseModalTitle">🧾 Thêm Khoản Chi Tiêu & Hóa Đơn Mới</h3>
         <button class="btn-close" data-close="addExpenseModal">&times;</button>
       </div>
       <form id="addExpenseForm" class="modal-body">
+        <div id="editNotice" class="alert alert-warning hidden">
+          <strong>✏️ Đang chỉnh sửa khoản chi:</strong> mỗi khoản chi chỉ được sửa <strong>1 lần</strong>.
+          Thông tin và ảnh hóa đơn cũ sẽ được lưu lại trong mục <em>Lịch Sử Sửa</em>.
+        </div>
         <div class="form-row">
           <div class="form-group col-8">
             <label class="form-label">Tên khoản chi / Món đồ đã mua <span class="text-danger">*</span></label>
@@ -294,6 +317,22 @@
           <button type="submit" id="btnSaveAllowance" class="btn btn-emerald">Lưu Vào Sổ</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Edit History of an expense -->
+  <div id="editHistoryModal" class="modal-backdrop">
+    <div class="modal modal-lg card">
+      <div class="modal-header">
+        <h3 class="modal-title">🕘 Lịch Sử Chỉnh Sửa Khoản Chi</h3>
+        <button class="btn-close" data-close="editHistoryModal">&times;</button>
+      </div>
+      <div class="modal-body" id="editHistoryBody">
+        <!-- Rendered via JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="editHistoryModal">Đóng</button>
+      </div>
     </div>
   </div>
 

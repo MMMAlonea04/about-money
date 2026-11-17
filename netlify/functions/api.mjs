@@ -52,6 +52,35 @@ async function getReceiptStore() {
   return getStore("expense_receipts");
 }
 
+// Lưu ảnh hóa đơn dạng base64 vào blob store, trả về id + mime type.
+async function saveReceiptBase64(receiptBase64) {
+  const receiptId = "rcp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+  const parts = String(receiptBase64).split(",");
+  const mimeMatch = parts[0]?.match(/:(.*?);/);
+  const receiptMime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  const base64Data = parts.length > 1 ? parts[1] : parts[0];
+  const buffer = Buffer.from(base64Data, "base64");
+
+  const receiptStore = await getReceiptStore();
+  await receiptStore.set(receiptId, buffer, {
+    metadata: { mimeType: receiptMime }
+  });
+  return { receiptId, receiptMime };
+}
+
+// Chụp lại toàn bộ dữ liệu của khoản chi để lưu vào lịch sử chỉnh sửa.
+function snapshotExpense(expense) {
+  return {
+    title: expense.title,
+    amount: expense.amount,
+    category: expense.category,
+    date: expense.date,
+    note: expense.note,
+    receiptId: expense.receiptId || null,
+    receiptMime: expense.receiptMime || null
+  };
+}
+
 async function loadData() {
   try {
     const store = await getDataStore();
@@ -321,6 +350,90 @@ export default async (req, context) => {
     }
   }
 
+  // --- ROUTE: PUT /expense --- (Edit an expense, only once per expense)
+  if (pathname === "/expense" && req.method === "PUT") {
+    try {
+      const body = await req.json();
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Vui lòng nhập lại mã PIN." }, 401);
+      }
+
+      const id = String(body.id || "");
+      if (!id) {
+        return jsonResponse({ success: false, error: "Thiếu ID khoản chi" }, 400);
+      }
+
+      const title = String(body.title || "").trim();
+      const amount = Number(body.amount);
+      if (!title) {
+        return jsonResponse({ success: false, error: "Vui lòng nhập tên khoản chi" }, 400);
+      }
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return jsonResponse({ success: false, error: "Số tiền chi tiêu không hợp lệ" }, 400);
+      }
+
+      const current = await loadData();
+      const index = current.expenses.findIndex((exp) => exp.id === id);
+      if (index === -1) {
+        return jsonResponse({ success: false, error: "Không tìm thấy khoản chi cần sửa" }, 404);
+      }
+
+      const expense = current.expenses[index];
+      const editCount = Number(expense.editCount || (expense.editedAt ? 1 : 0));
+      if (editCount >= 1) {
+        return jsonResponse(
+          { success: false, error: "Khoản chi này đã được sửa 1 lần. Mỗi khoản chi chỉ được sửa duy nhất 1 lần." },
+          409
+        );
+      }
+
+      const before = snapshotExpense(expense);
+
+      let receiptId = expense.receiptId || null;
+      let receiptMime = expense.receiptMime || null;
+      if (body.receiptBase64 && typeof body.receiptBase64 === "string") {
+        const saved = await saveReceiptBase64(body.receiptBase64);
+        receiptId = saved.receiptId;
+        receiptMime = saved.receiptMime;
+      } else if (body.removeReceipt) {
+        receiptId = null;
+        receiptMime = null;
+      }
+
+      const editedAt = new Date().toISOString();
+      const after = {
+        title,
+        amount,
+        category: body.category || expense.category || "Khác",
+        date: body.date || expense.date,
+        note: String(body.note || "").trim(),
+        receiptId,
+        receiptMime
+      };
+
+      expense.title = after.title;
+      expense.amount = after.amount;
+      expense.category = after.category;
+      expense.date = after.date;
+      expense.note = after.note;
+      expense.receiptId = receiptId;
+      expense.receiptMime = receiptMime;
+      expense.editCount = 1;
+      expense.editedAt = editedAt;
+      expense.editHistory = Array.isArray(expense.editHistory) ? expense.editHistory : [];
+      // Ảnh hóa đơn cũ vẫn được giữ nguyên trong blob store để xem lại ở lịch sử chỉnh sửa.
+      expense.editHistory.push({ editedAt, before, after });
+
+      current.expenses[index] = expense;
+      await saveData(current);
+
+      return jsonResponse({ success: true, item: expense, data: current });
+    } catch (err) {
+      console.error("Error updating expense:", err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
   // --- ROUTE: DELETE /expense ---
   if (pathname === "/expense" && req.method === "DELETE") {
     try {
@@ -333,10 +446,20 @@ export default async (req, context) => {
       const current = await loadData();
       const targetExpense = current.expenses.find((exp) => exp.id === id);
 
-      if (targetExpense && targetExpense.receiptId) {
+      if (targetExpense) {
+        // Xóa cả ảnh hóa đơn hiện tại và ảnh cũ đã lưu trong lịch sử chỉnh sửa.
+        const receiptIds = new Set();
+        if (targetExpense.receiptId) receiptIds.add(targetExpense.receiptId);
+        (targetExpense.editHistory || []).forEach((entry) => {
+          if (entry?.before?.receiptId) receiptIds.add(entry.before.receiptId);
+          if (entry?.after?.receiptId) receiptIds.add(entry.after.receiptId);
+        });
+
         try {
           const receiptStore = await getReceiptStore();
-          await receiptStore.delete(targetExpense.receiptId);
+          for (const receiptId of receiptIds) {
+            await receiptStore.delete(receiptId);
+          }
         } catch (err) {
           console.warn("Could not delete receipt blob:", err.message);
         }

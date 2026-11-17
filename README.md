@@ -18,6 +18,11 @@ Trang web giúp bạn liệt kê chi tiết từng hóa đơn, các khoản đã
    - Lọc theo tháng, lọc theo danh mục, tìm kiếm theo tên hoặc ghi chú, hoặc chỉ lọc những khoản có hóa đơn.
 4. **Chia sẻ nhanh qua Zalo**:
    - 1 nút bấm tự động sao chép tóm tắt tình hình chi tiêu để dán gửi Zalo cho mẹ.
+5. **Sửa khoản chi 1 lần & lưu lịch sử chỉnh sửa**:
+   - Mỗi khoản chi/hóa đơn chỉ được sửa **1 lần** (khóa cả trên giao diện lẫn máy chủ).
+   - Bản gốc (tên, số tiền, danh mục, ngày, ghi chú và **ảnh hóa đơn cũ**) được giữ nguyên ở tab **Lịch Sử Sửa** để mẹ đối soát.
+6. **Nhập số tiền lẻ**:
+   - Không bắt buộc số tròn: gõ được `57650`, `57.650` hay `57.650,5`; ô nhập hiển thị ngay số tiền đã định dạng.
 
 ---
 

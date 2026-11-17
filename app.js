@@ -26,6 +26,8 @@ let state = {
     onlyReceipts: false
   },
   pendingReceiptBase64: null,
+  editingExpenseId: null,
+  removeReceipt: false,
   isApiMode: false
 };
 
@@ -112,6 +114,37 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
+// Format Date + time (for edit history)
+function formatDateTime(isoStr) {
+  if (!isoStr) return "";
+  const date = new Date(isoStr);
+  if (isNaN(date.getTime())) return "";
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${formatDate(isoStr.slice(0, 10))} ${hh}:${mm}`;
+}
+
+// Đường dẫn ảnh hóa đơn của một khoản chi (hoặc của bản ghi cũ trong lịch sử)
+function receiptSrcOf(item) {
+  if (!item) return "";
+  if (item.receiptId) return `/api/receipt?id=${item.receiptId}`;
+  return item.receiptDataUrl || "";
+}
+
+// Chụp lại dữ liệu khoản chi trước khi sửa để lưu vào lịch sử chỉnh sửa.
+function snapshotExpense(exp) {
+  return {
+    title: exp.title,
+    amount: exp.amount,
+    category: exp.category,
+    date: exp.date,
+    note: exp.note,
+    receiptId: exp.receiptId || null,
+    receiptMime: exp.receiptMime || null,
+    receiptDataUrl: exp.receiptDataUrl || null
+  };
+}
+
 // DOM Elements
 const el = {
   totalAllowance: document.getElementById("totalAllowance"),
@@ -124,6 +157,11 @@ const el = {
   categoryStatsSummary: document.getElementById("categoryStatsSummary"),
   tabExpenseCount: document.getElementById("tabExpenseCount"),
   tabAllowanceCount: document.getElementById("tabAllowanceCount"),
+  tabEditHistoryCount: document.getElementById("tabEditHistoryCount"),
+  editHistorySummary: document.getElementById("editHistorySummary"),
+  editHistoryList: document.getElementById("editHistoryList"),
+  editHistoryModal: document.getElementById("editHistoryModal"),
+  editHistoryBody: document.getElementById("editHistoryBody"),
   expensesList: document.getElementById("expensesList"),
   allowancesList: document.getElementById("allowancesList"),
   searchInput: document.getElementById("searchInput"),
@@ -140,6 +178,8 @@ const el = {
   btnSubmitPin: document.getElementById("btnSubmitPin"),
   addExpenseModal: document.getElementById("addExpenseModal"),
   addExpenseForm: document.getElementById("addExpenseForm"),
+  expenseModalTitle: document.getElementById("expenseModalTitle"),
+  editNotice: document.getElementById("editNotice"),
   expenseTitle: document.getElementById("expenseTitle"),
   expenseAmount: document.getElementById("expenseAmount"),
   expenseAmountHint: document.getElementById("expenseAmountHint"),
@@ -377,6 +417,13 @@ function renderSummary() {
   el.tabExpenseCount.textContent = state.expenses.length;
   el.tabAllowanceCount.textContent = state.allowances.length;
 
+  const totalEdits = state.expenses.reduce(
+    (acc, exp) => acc + (Array.isArray(exp.editHistory) ? exp.editHistory.length : 0),
+    0
+  );
+  el.tabEditHistoryCount.textContent = totalEdits;
+  el.editHistorySummary.textContent = `${totalEdits} lần sửa trên ${state.expenses.filter((e) => (e.editHistory || []).length).length} khoản chi`;
+
   renderCategoryBreakdown(totalExp);
 }
 
@@ -492,8 +539,11 @@ function renderExpenses() {
 
   el.expensesList.innerHTML = filtered
     .map((exp) => {
-      const receiptImgSrc = exp.receiptId ? `/api/receipt?id=${exp.receiptId}` : exp.receiptDataUrl;
+      const receiptImgSrc = receiptSrcOf(exp);
       const hasReceipt = Boolean(receiptImgSrc);
+      const editCount = Number(exp.editCount || 0) || (Array.isArray(exp.editHistory) ? exp.editHistory.length : 0);
+      const isEdited = editCount > 0;
+      const canEdit = state.isAdmin && !isEdited;
 
       return `
       <div class="card expense-item">
@@ -512,8 +562,10 @@ function renderExpenses() {
               <span class="badge badge-cat">${exp.category || "Khác"}</span>
               <span>📅 ${formatDate(exp.date)}</span>
               ${hasReceipt ? `<span class="text-emerald" style="font-weight:600">✓ Có hóa đơn</span>` : ""}
+              ${isEdited ? `<span class="badge badge-edit">✏️ Đã sửa 1 lần</span>` : ""}
             </div>
             ${exp.note ? `<p class="expense-note">"${escapeHtml(exp.note)}"</p>` : ""}
+            ${isEdited ? `<p class="expense-note">Sửa lần cuối: ${formatDateTime(exp.editedAt)} — thông tin cũ vẫn được lưu ở mục Lịch Sử Sửa.</p>` : ""}
           </div>
         </div>
         <div class="expense-right">
@@ -522,6 +574,16 @@ function renderExpenses() {
             ${
               hasReceipt
                 ? `<button class="btn btn-sm btn-outline" onclick="viewReceipt('${exp.id}')">Xem hóa đơn</button>`
+                : ""
+            }
+            ${
+              canEdit
+                ? `<button class="btn btn-sm btn-outline" onclick="openEditExpense('${exp.id}')" title="Mỗi khoản chi chỉ được sửa 1 lần">✏️ Sửa</button>`
+                : ""
+            }
+            ${
+              isEdited
+                ? `<button class="btn btn-sm btn-outline" onclick="openEditHistory('${exp.id}')" title="Xem thông tin và hóa đơn cũ trước khi sửa">🕘 Lịch sử sửa</button>`
                 : ""
             }
             ${
@@ -569,29 +631,224 @@ function renderAllowances() {
     .join("");
 }
 
+// --- EDIT HISTORY ---
+
+// Gom tất cả lần chỉnh sửa của mọi khoản chi (mới nhất trước).
+function collectEditEntries() {
+  const entries = [];
+  state.expenses.forEach((exp) => {
+    (Array.isArray(exp.editHistory) ? exp.editHistory : []).forEach((entry) => {
+      entries.push({ exp, entry });
+    });
+  });
+  return entries.sort((a, b) => String(b.entry.editedAt || "").localeCompare(String(a.entry.editedAt || "")));
+}
+
+function buildHistoryRows(entry) {
+  const before = entry.before || {};
+  const after = entry.after || {};
+  const formatValue = (key, value) => {
+    if (key === "amount") return formatVND(Number(value) || 0);
+    if (key === "date") return value ? formatDate(value) : "—";
+    if (key === "note") return value ? escapeHtml(value) : "—";
+    return value ? escapeHtml(String(value)) : "—";
+  };
+  const isSame = (key, a, b) => {
+    if (key === "amount") return Number(a || 0) === Number(b || 0);
+    return String(a || "") === String(b || "");
+  };
+
+  return [
+    { key: "title", label: "Tên khoản chi" },
+    { key: "amount", label: "Số tiền" },
+    { key: "category", label: "Danh mục" },
+    { key: "date", label: "Ngày chi" },
+    { key: "note", label: "Ghi chú" }
+  ].map((row) => ({
+    ...row,
+    old: formatValue(row.key, before[row.key]),
+    new: formatValue(row.key, after[row.key]),
+    changed: !isSame(row.key, before[row.key], after[row.key])
+  }));
+}
+
+function renderHistoryReceipt(src, label, hint) {
+  const content = src
+    ? `<img src="${src}" alt="${label}" loading="lazy" onclick="viewImage(this.src, '${label}')">`
+    : `<span class="no-receipt">Không có ảnh hóa đơn</span>`;
+  return `<div class="history-receipt">${content}${hint ? `<div class="history-receipt-hint">${hint}</div>` : ""}</div>`;
+}
+
+function renderHistoryEntry(exp, entry) {
+  const rows = buildHistoryRows(entry);
+  const changedCount = rows.filter((row) => row.changed).length;
+  const oldSrc = receiptSrcOf(entry.before);
+  const newSrc = receiptSrcOf(entry.after);
+  const renderRows = (side) =>
+    rows
+      .map(
+        (row) => `
+        <div class="history-row${row.changed ? " changed" : ""}">
+          <span class="history-row-label">${row.label}</span>
+          <span class="history-row-value">${row[side]}</span>
+        </div>`
+      )
+      .join("");
+
+  return `
+    <div class="history-entry">
+      <div class="history-entry-head">
+        <span class="history-entry-title">🧾 ${escapeHtml((entry.after && entry.after.title) || exp.title)}</span>
+        <span class="history-time">🕘 ${formatDateTime(entry.editedAt)} · ${changedCount} thông tin thay đổi</span>
+      </div>
+      <div class="history-compare">
+        <div class="history-col is-old">
+          <h5>Trước khi sửa (bản gốc)</h5>
+          ${renderRows("old")}
+          ${renderHistoryReceipt(oldSrc, "Hóa đơn cũ", oldSrc ? "Ảnh hóa đơn cũ được giữ nguyên tại đây" : "")}
+        </div>
+        <div class="history-col is-new">
+          <h5>Sau khi sửa</h5>
+          ${renderRows("new")}
+          ${renderHistoryReceipt(newSrc, "Hóa đơn mới")}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderEditHistoryTab() {
+  if (!el.editHistoryList) return;
+  const entries = collectEditEntries();
+  if (entries.length === 0) {
+    el.editHistoryList.innerHTML = `
+      <div class="history-empty">
+        Chưa có khoản chi nào được sửa.<br>
+        Mỗi khoản chi chỉ được sửa 1 lần, thông tin và hóa đơn cũ sẽ được lưu lại ở đây.
+      </div>`;
+    return;
+  }
+  el.editHistoryList.innerHTML = entries.map(({ exp, entry }) => renderHistoryEntry(exp, entry)).join("");
+}
+
+// Mở lịch sử chỉnh sửa của một khoản chi
+window.openEditHistory = function (expenseId) {
+  const exp = state.expenses.find((e) => e.id === expenseId);
+  if (!exp) return;
+  const history = Array.isArray(exp.editHistory) ? exp.editHistory : [];
+  if (history.length === 0) {
+    showToast("Khoản chi này chưa có lần chỉnh sửa nào");
+    return;
+  }
+
+  const header = `
+    <div class="history-entry-head" style="margin-bottom:1rem">
+      <span class="history-entry-title">${escapeHtml(exp.title)} — ${formatVND(exp.amount)}</span>
+      <span class="history-time">📅 ${formatDate(exp.date)} · đã sửa ${history.length} lần</span>
+    </div>`;
+
+  el.editHistoryBody.innerHTML =
+    header +
+    history
+      .slice()
+      .reverse()
+      .map((entry) => renderHistoryEntry(exp, entry))
+      .join("");
+  el.editHistoryModal.classList.add("show");
+};
+
 // Master Render
 function renderAll() {
   renderSummary();
   updateDropdownFilters();
   renderExpenses();
   renderAllowances();
+  renderEditHistoryTab();
 }
+
+// View any image in Lightbox Modal
+window.viewImage = function (imgSrc, title) {
+  if (!imgSrc) return;
+  el.lightboxImage.src = imgSrc;
+  el.lightboxTitle.textContent = title || "Hóa đơn chi tiết";
+  el.lightboxDownload.href = imgSrc;
+  el.lightboxModal.classList.add("show");
+};
 
 // View Receipt in Lightbox Modal
 window.viewReceipt = function (expenseId) {
   const exp = state.expenses.find((e) => e.id === expenseId);
   if (!exp) return;
 
-  const imgSrc = exp.receiptId ? `/api/receipt?id=${exp.receiptId}` : exp.receiptDataUrl;
+  const imgSrc = receiptSrcOf(exp);
   if (!imgSrc) {
     showToast("Khoản chi này không đính kèm ảnh chụp hóa đơn");
     return;
   }
 
-  el.lightboxImage.src = imgSrc;
-  el.lightboxTitle.textContent = `${exp.title} - ${formatVND(exp.amount)} (${formatDate(exp.date)})`;
-  el.lightboxDownload.href = imgSrc;
-  el.lightboxModal.classList.add("show");
+  window.viewImage(imgSrc, `${exp.title} - ${formatVND(exp.amount)} (${formatDate(exp.date)})`);
+};
+
+// Đưa form khoản chi về chế độ "Thêm mới"
+function resetExpenseFormMode() {
+  state.editingExpenseId = null;
+  state.removeReceipt = false;
+  state.pendingReceiptBase64 = null;
+  if (el.expenseModalTitle) el.expenseModalTitle.textContent = "🧾 Thêm Khoản Chi Tiêu & Hóa Đơn Mới";
+  const saveBtn = document.getElementById("btnSaveExpense");
+  if (saveBtn) saveBtn.textContent = "Lưu Khoản Chi";
+  if (el.editNotice) el.editNotice.classList.add("hidden");
+  const errElem = document.getElementById("expenseFormError");
+  if (errElem) errElem.classList.add("hidden");
+  if (el.receiptFileInput) el.receiptFileInput.value = "";
+  if (el.receiptCameraInput) el.receiptCameraInput.value = "";
+  if (el.previewImage) el.previewImage.src = "";
+  if (el.uploadPreview) el.uploadPreview.classList.add("hidden");
+}
+
+// Mở form sửa khoản chi (mỗi khoản chỉ được sửa 1 lần)
+window.openEditExpense = function (expenseId) {
+  const exp = state.expenses.find((e) => e.id === expenseId);
+  if (!exp) return;
+
+  const editCount =
+    Number(exp.editCount || 0) ||
+    (Array.isArray(exp.editHistory) ? exp.editHistory.length : 0);
+  if (editCount >= 1) {
+    showToast("⚠️ Khoản chi này đã được sửa 1 lần, không thể sửa tiếp. Xem lại ở mục Lịch Sử Sửa.");
+    return;
+  }
+
+  state.editingExpenseId = exp.id;
+  state.removeReceipt = false;
+  state.pendingReceiptBase64 = null;
+
+  el.expenseTitle.value = exp.title || "";
+  el.expenseAmount.value = exp.amount != null ? String(exp.amount) : "";
+  el.expenseAmount.dispatchEvent(new Event("input"));
+  el.expenseCategory.value = exp.category || "Khác";
+  el.expenseDate.value = exp.date || new Date().toISOString().split("T")[0];
+  el.expenseNote.value = exp.note || "";
+
+  if (el.expenseModalTitle) el.expenseModalTitle.textContent = "✏️ Sửa Khoản Chi / Hóa Đơn";
+  const saveBtn = document.getElementById("btnSaveExpense");
+  if (saveBtn) saveBtn.textContent = "Lưu Thay Đổi";
+  if (el.editNotice) el.editNotice.classList.remove("hidden");
+  const errElem = document.getElementById("expenseFormError");
+  if (errElem) errElem.classList.add("hidden");
+
+  if (el.receiptFileInput) el.receiptFileInput.value = "";
+  if (el.receiptCameraInput) el.receiptCameraInput.value = "";
+  el.previewImage.src = "";
+  el.uploadPreview.classList.add("hidden");
+
+  const currentReceipt = receiptSrcOf(exp);
+  if (currentReceipt) {
+    el.previewImage.src = currentReceipt;
+    el.previewInfo.textContent = "Ảnh hóa đơn hiện tại · thay ảnh mới thì ảnh này vẫn được lưu vào lịch sử";
+    el.uploadPreview.classList.remove("hidden");
+  }
+
+  openModal(el.addExpenseModal);
 };
 
 // Delete Expense
@@ -748,6 +1005,7 @@ function setupEventListeners() {
 
   // Open Add Expense Modal
   el.btnOpenAddExpense.addEventListener("click", () => {
+    resetExpenseFormMode();
     el.expenseDate.value = new Date().toISOString().split("T")[0];
     el.expenseTitle.value = "";
     el.expenseAmount.value = "";
@@ -775,6 +1033,7 @@ function setupEventListeners() {
       showToast("⏳ Đang xử lý và tối ưu ảnh hóa đơn...");
       const result = await compressImage(file, 1280, 0.82);
       state.pendingReceiptBase64 = result.dataUrl;
+      state.removeReceipt = false;
 
       el.previewImage.src = result.dataUrl;
       el.previewInfo.textContent = `${result.originalSizeKb} KB ➔ ${result.compressedSizeKb} KB (Đã tối ưu)`;
@@ -811,6 +1070,11 @@ function setupEventListeners() {
   if (el.btnRemoveImage) {
     el.btnRemoveImage.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (state.editingExpenseId) {
+        // Ảnh cũ vẫn được giữ trong blob store để xem lại ở lịch sử chỉnh sửa
+        state.removeReceipt = true;
+        showToast("📌 Ảnh hóa đơn cũ sẽ được lưu lại trong Lịch Sử Sửa");
+      }
       clearReceiptPreview();
     });
   }
@@ -823,7 +1087,7 @@ function setupEventListeners() {
     if (el.uploadPreview) el.uploadPreview.classList.add("hidden");
   }
 
-  // Handle Add Expense Form Submit
+  // Handle Add / Edit Expense Form Submit
   el.addExpenseForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = el.expenseTitle.value.trim();
@@ -832,6 +1096,10 @@ function setupEventListeners() {
     const date = el.expenseDate.value;
     const note = el.expenseNote.value.trim();
     const errElem = document.getElementById("expenseFormError");
+    const isEditing = Boolean(state.editingExpenseId);
+    const editingExpense = isEditing
+      ? state.expenses.find((item) => item.id === state.editingExpenseId)
+      : null;
 
     if (!title || amount == null) {
       errElem.textContent = "Vui lòng nhập đầy đủ tên và số tiền hợp lệ (lớn hơn 0)!";
@@ -839,24 +1107,36 @@ function setupEventListeners() {
       return;
     }
 
+    if (isEditing) {
+      const editCount = editingExpense
+        ? Number(editingExpense.editCount || 0) ||
+          (Array.isArray(editingExpense.editHistory) ? editingExpense.editHistory.length : 0)
+        : 0;
+      if (!editingExpense || editCount >= 1) {
+        errElem.textContent = editingExpense
+          ? "Khoản chi này đã được sửa 1 lần. Mỗi khoản chi chỉ được sửa duy nhất 1 lần."
+          : "Không tìm thấy khoản chi cần sửa.";
+        errElem.classList.remove("hidden");
+        return;
+      }
+    }
+
     const saveBtn = document.getElementById("btnSaveExpense");
+    const defaultBtnLabel = isEditing ? "Lưu Thay Đổi" : "Lưu Khoản Chi";
     saveBtn.disabled = true;
     saveBtn.textContent = "Đang lưu...";
 
     if (state.isApiMode) {
       try {
-        const payload = {
-          title,
-          amount,
-          category,
-          date,
-          note,
-          pin: state.adminPin,
-          receiptBase64: state.pendingReceiptBase64
-        };
+        const payload = { title, amount, category, date, note, pin: state.adminPin };
+        if (isEditing) {
+          payload.id = state.editingExpenseId;
+          payload.removeReceipt = state.removeReceipt;
+        }
+        payload.receiptBase64 = state.pendingReceiptBase64;
 
         const res = await fetch("/api/expense", {
-          method: "POST",
+          method: isEditing ? "PUT" : "POST",
           headers: {
             "Content-Type": "application/json",
             "x-admin-pin": state.adminPin
@@ -869,20 +1149,49 @@ function setupEventListeners() {
           errElem.textContent = json.error || "Lỗi khi lưu khoản chi";
           errElem.classList.remove("hidden");
           saveBtn.disabled = false;
-          saveBtn.textContent = "Lưu Khoản Chi";
+          saveBtn.textContent = defaultBtnLabel;
           return;
         }
 
-        state.expenses.unshift(json.item);
+        if (isEditing) {
+          const index = state.expenses.findIndex((item) => item.id === json.item.id);
+          if (index >= 0) state.expenses[index] = json.item;
+          else state.expenses.unshift(json.item);
+        } else {
+          state.expenses.unshift(json.item);
+        }
       } catch (err) {
         errElem.textContent = "Lỗi kết nối máy chủ: " + err.message;
         errElem.classList.remove("hidden");
         saveBtn.disabled = false;
-        saveBtn.textContent = "Lưu Khoản Chi";
+        saveBtn.textContent = defaultBtnLabel;
         return;
       }
+    } else if (isEditing) {
+      // Local mode: cập nhật khoản chi và lưu bản cũ vào lịch sử
+      const before = snapshotExpense(editingExpense);
+      const editedAt = new Date().toISOString();
+      const newReceiptDataUrl = state.pendingReceiptBase64
+        ? state.pendingReceiptBase64
+        : state.removeReceipt
+          ? null
+          : editingExpense.receiptDataUrl || null;
+
+      editingExpense.title = title;
+      editingExpense.amount = amount;
+      editingExpense.category = category;
+      editingExpense.date = date;
+      editingExpense.note = note;
+      editingExpense.receiptId = null;
+      editingExpense.receiptMime = null;
+      editingExpense.receiptDataUrl = newReceiptDataUrl;
+      editingExpense.editCount = 1;
+      editingExpense.editedAt = editedAt;
+      editingExpense.editHistory = Array.isArray(editingExpense.editHistory) ? editingExpense.editHistory : [];
+      editingExpense.editHistory.push({ editedAt, before, after: snapshotExpense(editingExpense) });
+      saveLocalData();
     } else {
-      // Local mode
+      // Local mode: thêm khoản chi mới
       const newExp = {
         id: "exp_" + Date.now(),
         title,
@@ -898,11 +1207,17 @@ function setupEventListeners() {
       saveLocalData();
     }
 
+    const wasEditing = isEditing;
     saveBtn.disabled = false;
-    saveBtn.textContent = "Lưu Khoản Chi";
+    saveBtn.textContent = defaultBtnLabel;
     closeModal(el.addExpenseModal);
+    resetExpenseFormMode();
     renderAll();
-    showToast("✅ Đã ghi nhận khoản chi & hóa đơn thành công!");
+    showToast(
+      wasEditing
+        ? "✅ Đã cập nhật khoản chi — mỗi khoản chỉ được sửa 1 lần, bản cũ đã lưu ở Lịch Sử Sửa!"
+        : "✅ Đã ghi nhận khoản chi & hóa đơn thành công!"
+    );
   });
 
   // Handle Add Allowance Form Submit
