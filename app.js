@@ -2,6 +2,7 @@
 
 const STORAGE_KEY_DATA = "about_money_local_data_v1";
 const STORAGE_KEY_PIN = "about_money_saved_pin";
+const AMOUNT_HINT_DEFAULT = "Có thể nhập số lẻ tùy ý, ví dụ 57.650 ₫.";
 
 // App State
 let state = {
@@ -55,11 +56,53 @@ function createDemoReceiptSvg(title, price, date) {
 }
 
 // Format currency in Vietnamese Dong
+// Số tiền lẻ (có phần thập phân) được hiển thị đủ 2 chữ số sau dấu phẩy,
+// số tiền chẵn vẫn hiển thị gọn như cũ.
 function formatVND(amount) {
+  const value = Number(amount) || 0;
+  const hasFraction = !Number.isInteger(value);
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
-    currency: "VND"
-  }).format(amount || 0);
+    currency: "VND",
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: hasFraction ? 2 : 0
+  }).format(value);
+}
+
+// Đọc số tiền người dùng nhập: chấp nhận mọi số dương, kể cả số lẻ.
+function parseAmount(rawValue) {
+  const raw = String(rawValue == null ? "" : rawValue).trim().replace(/\s/g, "").replace(",", ".");
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+// Hiển thị ngay số tiền vừa nhập theo định dạng Việt Nam để người dùng kiểm tra lại.
+function syncAmountHint(input, hint, fallbackText) {
+  if (!input || !hint) return () => {};
+  const sync = () => {
+    const value = parseAmount(input.value);
+    if (value == null) {
+      hint.textContent = fallbackText;
+      hint.classList.remove("text-emerald");
+      return;
+    }
+    hint.textContent = `≈ ${formatVND(value)}`;
+    hint.classList.add("text-emerald");
+  };
+  input.addEventListener("input", sync);
+  input.addEventListener("blur", sync);
+  return sync;
+}
+
+// Dán số tiền kiểu "57.650 đ" / "1.500.000": bỏ dấu phân cách nghìn để không bị hiểu nhầm.
+function handleAmountPaste(e) {
+  const clipboard = e.clipboardData || window.clipboardData;
+  if (!clipboard) return;
+  const numeric = String(clipboard.getData("text") || "").replace(/[^\d.,]/g, "");
+  if (!/^\d{1,3}([.,]\d{3})+$/.test(numeric)) return;
+  e.preventDefault();
+  e.target.value = numeric.replace(/[.,]/g, "");
+  e.target.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 // Format Date for Vietnamese display
@@ -99,6 +142,7 @@ const el = {
   addExpenseForm: document.getElementById("addExpenseForm"),
   expenseTitle: document.getElementById("expenseTitle"),
   expenseAmount: document.getElementById("expenseAmount"),
+  expenseAmountHint: document.getElementById("expenseAmountHint"),
   expenseCategory: document.getElementById("expenseCategory"),
   expenseDate: document.getElementById("expenseDate"),
   expenseNote: document.getElementById("expenseNote"),
@@ -116,6 +160,7 @@ const el = {
   addAllowanceModal: document.getElementById("addAllowanceModal"),
   addAllowanceForm: document.getElementById("addAllowanceForm"),
   allowanceAmount: document.getElementById("allowanceAmount"),
+  allowanceAmountHint: document.getElementById("allowanceAmountHint"),
   allowanceDate: document.getElementById("allowanceDate"),
   allowanceNote: document.getElementById("allowanceNote"),
   lightboxModal: document.getElementById("lightboxModal"),
@@ -624,6 +669,12 @@ function escapeHtml(str) {
 
 // Event Listeners
 function setupEventListeners() {
+  // Số tiền: cho phép số lẻ, xem trước định dạng ngay khi nhập
+  syncAmountHint(el.expenseAmount, el.expenseAmountHint, AMOUNT_HINT_DEFAULT);
+  syncAmountHint(el.allowanceAmount, el.allowanceAmountHint, AMOUNT_HINT_DEFAULT);
+  if (el.expenseAmount) el.expenseAmount.addEventListener("paste", handleAmountPaste);
+  if (el.allowanceAmount) el.allowanceAmount.addEventListener("paste", handleAmountPaste);
+
   // Tabs
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -700,6 +751,7 @@ function setupEventListeners() {
     el.expenseDate.value = new Date().toISOString().split("T")[0];
     el.expenseTitle.value = "";
     el.expenseAmount.value = "";
+    el.expenseAmount.dispatchEvent(new Event("input"));
     el.expenseNote.value = "";
     clearReceiptPreview();
     openModal(el.addExpenseModal);
@@ -709,6 +761,7 @@ function setupEventListeners() {
   const openAllowanceModal = () => {
     el.allowanceDate.value = new Date().toISOString().split("T")[0];
     el.allowanceAmount.value = "";
+    el.allowanceAmount.dispatchEvent(new Event("input"));
     el.allowanceNote.value = "Mẹ gửi tiền sinh hoạt";
     openModal(el.addAllowanceModal);
   };
@@ -774,14 +827,14 @@ function setupEventListeners() {
   el.addExpenseForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = el.expenseTitle.value.trim();
-    const amount = Number(el.expenseAmount.value);
+    const amount = parseAmount(el.expenseAmount.value);
     const category = el.expenseCategory.value;
     const date = el.expenseDate.value;
     const note = el.expenseNote.value.trim();
     const errElem = document.getElementById("expenseFormError");
 
-    if (!title || !amount) {
-      errElem.textContent = "Vui lòng nhập đầy đủ tên và số tiền!";
+    if (!title || amount == null) {
+      errElem.textContent = "Vui lòng nhập đầy đủ tên và số tiền hợp lệ (lớn hơn 0)!";
       errElem.classList.remove("hidden");
       return;
     }
@@ -855,13 +908,13 @@ function setupEventListeners() {
   // Handle Add Allowance Form Submit
   el.addAllowanceForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const amount = Number(el.allowanceAmount.value);
+    const amount = parseAmount(el.allowanceAmount.value);
     const date = el.allowanceDate.value;
     const note = el.allowanceNote.value.trim();
     const errElem = document.getElementById("allowanceFormError");
 
-    if (!amount || amount <= 0) {
-      errElem.textContent = "Vui lòng nhập số tiền hợp lệ!";
+    if (amount == null) {
+      errElem.textContent = "Vui lòng nhập số tiền hợp lệ (lớn hơn 0)!";
       errElem.classList.remove("hidden");
       return;
     }

@@ -196,7 +196,8 @@
           </div>
           <div class="form-group col-4">
             <label class="form-label">Số tiền (VNĐ) <span class="text-danger">*</span></label>
-            <input type="number" id="expenseAmount" class="form-input" placeholder="Ví dụ: 250000" min="1000" step="1000" required>
+            <input type="number" id="expenseAmount" class="form-input" placeholder="Ví dụ: 250000 hoặc 57650" min="1" step="any" inputmode="decimal" required>
+            <small class="form-hint" id="expenseAmountHint">Có thể nhập số lẻ tùy ý, ví dụ 57.650 ₫.</small>
           </div>
         </div>
 
@@ -272,7 +273,8 @@
       <form id="addAllowanceForm" class="modal-body">
         <div class="form-group">
           <label class="form-label">Số tiền mẹ chuyển (VNĐ) <span class="text-danger">*</span></label>
-          <input type="number" id="allowanceAmount" class="form-input" placeholder="Ví dụ: 3000000" min="10000" step="10000" required>
+          <input type="number" id="allowanceAmount" class="form-input" placeholder="Ví dụ: 3000000 hoặc 57650" min="1" step="any" inputmode="decimal" required>
+          <small class="form-hint" id="allowanceAmountHint">Có thể nhập số lẻ tùy ý, ví dụ 57.650 ₫.</small>
         </div>
 
         <div class="form-group">
