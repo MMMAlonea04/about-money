@@ -13,21 +13,27 @@
   <div class="app-container">
     <!-- Top Bar -->
     <header class="top-nav">
-      <div class="brand">
-        <div class="brand-icon">🧾</div>
-        <div>
-          <h1 class="brand-title">Sổ Chi Tiêu & Hóa Đơn</h1>
-          <p class="brand-subtitle">Minh bạch từng khoản tiền mẹ trợ cấp</p>
+      <div class="top-nav-main">
+        <div class="brand">
+          <div class="brand-icon">🧾</div>
+          <div>
+            <h1 class="brand-title">Sổ Chi Tiêu & Hóa Đơn</h1>
+            <p class="brand-subtitle">Minh bạch từng khoản tiền mẹ trợ cấp</p>
+          </div>
+        </div>
+        <div class="nav-actions">
+          <button id="btnShareSummary" class="btn btn-outline btn-sm" title="Sao chép báo cáo gửi Zalo cho Mẹ">
+            <span>📲 Báo cáo Zalo</span>
+          </button>
+          <button id="btnAuthToggle" class="btn btn-secondary btn-sm">
+            <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem (Mẹ)</span>
+          </button>
         </div>
       </div>
-      <div class="nav-actions">
-        <button id="btnShareSummary" class="btn btn-outline btn-sm" title="Sao chép báo cáo gửi Zalo cho Mẹ">
-          <span>📲 Báo cáo Zalo</span>
-        </button>
-        <button id="btnAuthToggle" class="btn btn-secondary btn-sm">
-          <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem (Mẹ)</span>
-        </button>
-      </div>
+      <nav class="page-tabs" aria-label="Chuyển trang">
+        <a class="page-tab active" href="./index.html">🧾 Sổ Chi Tiêu</a>
+        <a class="page-tab" href="./so-tay.html">📒 Hóa Đơn &amp; Sổ Thông Tin</a>
+      </nav>
     </header>
 
     <!-- Admin Quick Actions (Visible when unlocked with PIN) -->

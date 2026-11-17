@@ -1,0 +1,222 @@
+/* ===== Trang "Hóa Đơn & Sổ Thông Tin" (so-tay.html) ===== */
+
+.nb-note {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.9rem 1.1rem;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  color: #92400e;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.nb-note a {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.nb-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  flex-wrap: wrap;
+}
+
+.nb-toolbar .search-box {
+  flex: 1 1 320px;
+}
+
+.nb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+/* --- Hóa đơn lẻ --- */
+.nb-receipt-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.nb-receipt-media {
+  height: 180px;
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-in;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.nb-receipt-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.nb-receipt-media .nb-no-img {
+  font-size: 2.5rem;
+  opacity: 0.45;
+}
+
+.nb-media-empty {
+  height: 92px;
+}
+
+.nb-receipt-media.nb-media-empty {
+  height: 92px;
+}
+
+.nb-receipt-body {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.nb-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.nb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.nb-badge {
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.nb-amount {
+  font-weight: 800;
+  color: var(--danger);
+}
+
+.nb-note-text {
+  font-size: 0.85rem;
+  color: #475569;
+  font-style: italic;
+  margin-top: 0.1rem;
+}
+
+.nb-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  flex-wrap: wrap;
+}
+
+/* --- Sổ thông tin --- */
+.nb-contact-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.nb-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #eef2ff, #f0fdf4);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.nb-contact-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.nb-contact-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nb-contact-name {
+  font-weight: 700;
+  color: var(--text-main);
+  font-size: 1rem;
+  word-break: break-word;
+}
+
+.nb-role {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--emerald);
+  background-color: var(--emerald-light);
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.nb-phone a {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.nb-phone a:hover {
+  text-decoration: underline;
+}
+
+.nb-address {
+  font-size: 0.83rem;
+  color: #475569;
+  word-break: break-word;
+}
+
+.nb-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nb-empty .empty-icon {
+  font-size: 2.6rem;
+}
+
+@media (max-width: 640px) {
+  .nb-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nb-receipt-media {
+    height: 150px;
+  }
+}

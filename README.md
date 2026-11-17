@@ -23,6 +23,11 @@ Trang web giúp bạn liệt kê chi tiết từng hóa đơn, các khoản đã
    - Bản gốc (tên, số tiền, danh mục, ngày, ghi chú và **ảnh hóa đơn cũ**) được giữ nguyên ở tab **Lịch Sử Sửa** để mẹ đối soát.
 6. **Nhập số tiền lẻ**:
    - Không bắt buộc số tròn: gõ được `57650`, `57.650` hay `57.650,5`; ô nhập hiển thị ngay số tiền đã định dạng.
+7. **Trang riêng: Hóa Đơn & Sổ Thông Tin** (tab mới ở header):
+   - Lưu **hóa đơn lẻ / giấy tờ** không liên quan sổ chi tiêu: ảnh hóa đơn, người bán, số tiền (không bắt buộc), nhóm, ghi chú.
+   - **Sổ thông tin** chủ nhà, người bán hàng, thợ sửa… kèm số điện thoại bấm gọi được và địa chỉ.
+   - Tìm kiếm, sửa, xóa; mở khóa bằng chung mã PIN `ADMIN_PIN`.
+   - Dữ liệu lưu ở kho riêng (Netlify Blobs `notebook_data`), hoàn toàn **không ảnh hưởng** tổng chi tiêu và số dư của trang Sổ Chi Tiêu.
 
 ---
 

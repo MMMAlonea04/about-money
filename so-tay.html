@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hóa Đơn &amp; Sổ Thông Tin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="so-tay.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Bar -->
+    <header class="top-nav">
+      <div class="top-nav-main">
+        <div class="brand">
+          <div class="brand-icon">📒</div>
+          <div>
+            <h1 class="brand-title">Hóa Đơn &amp; Sổ Thông Tin</h1>
+            <p class="brand-subtitle">Nơi lưu hóa đơn lẻ, chủ nhà, người bán hàng…</p>
+          </div>
+        </div>
+        <div class="nav-actions">
+          <button id="btnAuthToggle" class="btn btn-secondary btn-sm">
+            <span id="authIcon">🔒</span> <span id="authLabel">Chế độ xem</span>
+          </button>
+        </div>
+      </div>
+      <nav class="page-tabs" aria-label="Chuyển trang">
+        <a class="page-tab" href="./index.html">🧾 Sổ Chi Tiêu</a>
+        <a class="page-tab active" href="./so-tay.html">📒 Hóa Đơn &amp; Sổ Thông Tin</a>
+      </nav>
+    </header>
+
+    <!-- Admin Quick Actions -->
+    <section id="adminBanner" class="admin-banner hidden">
+      <div class="admin-banner-content">
+        <span class="badge badge-success">✨ Đang mở khóa Quản lý</span>
+        <span class="admin-hint">Bạn có thể thêm, sửa hóa đơn lẻ và ghi lại thông tin chủ nhà, người bán hàng.</span>
+      </div>
+      <div class="admin-actions">
+        <button id="btnOpenAddReceipt" class="btn btn-primary">➕ Thêm Hóa Đơn</button>
+        <button id="btnOpenAddContact" class="btn btn-emerald">➕ Thêm Thông Tin</button>
+      </div>
+    </section>
+
+    <div class="nb-note card">
+      <span>📌</span>
+      <p>
+        Trang này lưu <strong>riêng</strong> hóa đơn lẻ và thông tin liên hệ. Mọi thứ ở đây
+        <strong>không ảnh hưởng</strong> đến tổng chi tiêu và số dư ở trang
+        <a href="./index.html">Sổ Chi Tiêu &amp; Hóa Đơn</a>.
+      </p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-header">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="nbReceipts">
+          🧾 Hóa Đơn Lẻ (<span id="nbReceiptCount">0</span>)
+        </button>
+        <button class="tab-btn" data-tab="nbContacts">
+          👤 Sổ Thông Tin (<span id="nbContactCount">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <div class="nb-toolbar card">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="nbSearchInput" placeholder="Tìm theo tên, người bán, ghi chú…">
+      </div>
+      <span class="text-muted" id="nbSummaryText">0 mục</span>
+    </div>
+
+    <!-- Tab 1: Receipts -->
+    <div id="nbReceipts" class="tab-pane active">
+      <div class="nb-grid" id="nbReceiptsList">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+
+    <!-- Tab 2: Contacts -->
+    <div id="nbContacts" class="tab-pane">
+      <div class="nb-grid" id="nbContactsList">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      <p>Hóa đơn lẻ &amp; sổ thông tin gia đình • Dữ liệu được lưu riêng, không trộn với sổ chi tiêu</p>
+    </footer>
+  </div>
+
+  <!-- MODAL: PIN Login / Unlock -->
+  <div id="pinModal" class="modal-backdrop">
+    <div class="modal card">
+      <div class="modal-header">
+        <h3 class="modal-title">🔐 Mở Khóa Chế Độ Quản Lý</h3>
+        <button class="btn-close" data-close="pinModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Nhập mật khẩu quản trị để thêm, sửa hoặc xóa hóa đơn lẻ và thông tin liên hệ.
+        </p>
+        <div class="form-group">
+          <label for="pinInput" class="form-label">Mật khẩu quản trị:</label>
+          <input type="password" id="pinInput" class="form-input" placeholder="Nhập mật khẩu quản trị..." maxlength="50" autofocus>
+          <small class="form-hint">Dùng chung mật khẩu <code>ADMIN_PIN</code> với trang Sổ Chi Tiêu.</small>
+        </div>
+        <div id="pinError" class="alert alert-danger hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="pinModal">Hủy</button>
+        <button id="btnSubmitPin" class="btn btn-primary">Mở Khóa Ngay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add / Edit Receipt -->
+  <div id="nbReceiptModal" class="modal-backdrop">
+    <div class="modal modal-lg card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="nbReceiptModalTitle">🧾 Thêm Hóa Đơn Lẻ</h3>
+        <button class="btn-close" data-close="nbReceiptModal">&times;</button>
+      </div>
+      <form id="nbReceiptForm" class="modal-body">
+        <div class="form-row">
+          <div class="form-group col-7">
+            <label class="form-label">Tên hóa đơn / Loại giấy tờ</label>
+            <input type="text" id="nbReceiptTitle" class="form-input" placeholder="Ví dụ: Hóa đơn mua quạt, phiếu bảo hành tủ lạnh…">
+          </div>
+          <div class="form-group col-5">
+            <label class="form-label">Số tiền (không bắt buộc)</label>
+            <input type="number" id="nbReceiptAmount" class="form-input" placeholder="Ví dụ: 250000" min="0" step="any" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label class="form-label">Người bán / Nơi mua</label>
+            <input type="text" id="nbReceiptVendor" class="form-input" placeholder="Ví dụ: Điện Máy Xanh, chị Hoa tạp hóa…">
+          </div>
+          <div class="form-group col-6">
+            <label class="form-label">Ngày</label>
+            <input type="date" id="nbReceiptDate" class="form-input">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label class="form-label">Nhóm / Loại</label>
+            <input type="text" id="nbReceiptCategory" class="form-input" list="nbCategoryList" placeholder="Ví dụ: Bảo hành, Mua sắm…">
+            <datalist id="nbCategoryList">
+              <option value="Bảo hành"></option>
+              <option value="Mua sắm"></option>
+              <option value="Dịch vụ"></option>
+              <option value="Tiền cọc"></option>
+              <option value="Giấy tờ"></option>
+            </datalist>
+          </div>
+          <div class="form-group col-6">
+            <label class="form-label">Ghi chú ngắn</label>
+            <input type="text" id="nbReceiptNote" class="form-input" placeholder="Ví dụ: Còn bảo hành đến 12/2027…">
+          </div>
+        </div>
+
+        <div class="receipt-upload-box">
+          <label class="form-label font-bold">📸 Ảnh hóa đơn / giấy tờ</label>
+          <p class="form-hint">Ảnh sẽ được nén tự động để mở nhanh trên điện thoại.</p>
+
+          <input type="file" id="nbReceiptFileInput" accept="image/*" class="file-hidden">
+          <input type="file" id="nbReceiptCameraInput" accept="image/*" capture="environment" class="file-hidden">
+
+          <div class="upload-options" id="nbUploadOptions">
+            <button type="button" id="nbChooseGallery" class="upload-opt-btn">
+              <span class="upload-btn-icon">🖼️</span>
+              <div class="upload-opt-text">
+                <strong>Tải ảnh từ Thư viện</strong>
+                <span class="upload-sub">Chọn ảnh hóa đơn có sẵn trong máy</span>
+              </div>
+            </button>
+            <button type="button" id="nbChooseCamera" class="upload-opt-btn">
+              <span class="upload-btn-icon">📷</span>
+              <div class="upload-opt-text">
+                <strong>Chụp ảnh Camera</strong>
+                <span class="upload-sub">Chụp ngay hóa đơn / giấy tờ</span>
+              </div>
+            </button>
+          </div>
+
+          <div id="nbUploadPreview" class="upload-preview hidden">
+            <img id="nbPreviewImage" src="" alt="Hóa đơn xem trước">
+            <div class="preview-actions">
+              <span id="nbPreviewInfo" class="preview-size-badge"></span>
+              <button type="button" id="nbRemoveImage" class="btn btn-sm btn-danger">Xóa ảnh</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="nbReceiptError" class="alert alert-danger hidden"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="nbReceiptModal">Đóng</button>
+          <button type="submit" id="nbSaveReceipt" class="btn btn-primary">Lưu Hóa Đơn</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Add / Edit Contact -->
+  <div id="nbContactModal" class="modal-backdrop">
+    <div class="modal card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="nbContactModalTitle">👤 Thêm Thông Tin</h3>
+        <button class="btn-close" data-close="nbContactModal">&times;</button>
+      </div>
+      <form id="nbContactForm" class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Tên người / Nơi lưu thông tin <span class="text-danger">*</span></label>
+          <input type="text" id="nbContactName" class="form-input" placeholder="Ví dụ: Cô Lan (chủ nhà), anh Tuấn (sửa điện)…" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label class="form-label">Vai trò</label>
+            <input type="text" id="nbContactRole" class="form-input" list="nbRoleList" placeholder="Ví dụ: Chủ nhà, Người bán hàng…">
+            <datalist id="nbRoleList">
+              <option value="Chủ nhà"></option>
+              <option value="Người bán hàng"></option>
+              <option value="Thợ sửa"></option>
+              <option value="Chủ trọ"></option>
+              <option value="Shipper"></option>
+              <option value="Khác"></option>
+            </datalist>
+          </div>
+          <div class="form-group col-6">
+            <label class="form-label">Số điện thoại</label>
+            <input type="tel" id="nbContactPhone" class="form-input" placeholder="Ví dụ: 0901 234 567">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Địa chỉ / Nơi gặp</label>
+          <input type="text" id="nbContactAddress" class="form-input" placeholder="Ví dụ: 12 Nguyễn Trãi, quầy 3 chợ Hôm…">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ghi chú</label>
+          <input type="text" id="nbContactNote" class="form-input" placeholder="Ví dụ: Chốt tiền nhà ngày 5 hằng tháng, bán chịu được…">
+        </div>
+
+        <div id="nbContactError" class="alert alert-danger hidden"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="nbContactModal">Đóng</button>
+          <button type="submit" id="nbSaveContact" class="btn btn-emerald">Lưu Thông Tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightboxModal" class="lightbox-backdrop">
+    <div class="lightbox-container">
+      <div class="lightbox-toolbar">
+        <span id="lightboxTitle" class="lightbox-title">Hóa đơn chi tiết</span>
+        <div class="lightbox-btns">
+          <a id="lightboxDownload" href="#" target="_blank" download class="btn btn-sm btn-outline text-white">Mở ảnh gốc ↗</a>
+          <button id="lightboxClose" class="lightbox-close">&times;</button>
+        </div>
+      </div>
+      <div class="lightbox-content">
+        <img id="lightboxImage" src="" alt="Ảnh hóa đơn đầy đủ">
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="so-tay.js"></script>
+</body>
+</html>

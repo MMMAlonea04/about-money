@@ -52,6 +52,39 @@ async function getReceiptStore() {
   return getStore("expense_receipts");
 }
 
+async function getNotebookStore() {
+  return getStore("notebook_data");
+}
+
+async function loadNotebook() {
+  try {
+    const store = await getNotebookStore();
+    const records = await store.get("records", { type: "json" });
+    if (records && Array.isArray(records.receipts) && Array.isArray(records.contacts)) {
+      return { receipts: records.receipts, contacts: records.contacts };
+    }
+  } catch (err) {
+    console.warn("Could not read notebook from Netlify Blobs:", err.message);
+  }
+  return { receipts: [], contacts: [] };
+}
+
+async function saveNotebook(notebook) {
+  const store = await getNotebookStore();
+  await store.setJSON("records", notebook);
+  return true;
+}
+
+async function deleteReceiptBlob(receiptId) {
+  if (!receiptId) return;
+  try {
+    const receiptStore = await getReceiptStore();
+    await receiptStore.delete(receiptId);
+  } catch (err) {
+    console.warn("Could not delete receipt blob:", err.message);
+  }
+}
+
 // Lưu ảnh hóa đơn dạng base64 vào blob store, trả về id + mime type.
 async function saveReceiptBase64(receiptBase64) {
   const receiptId = "rcp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
@@ -171,6 +204,234 @@ export default async (req, context) => {
       categories: DEFAULT_CATEGORIES
     });
   }
+
+  // ================= SỔ HÓA ĐƠN & THÔNG TIN (trang riêng) =================
+
+  // --- ROUTE: GET /notebook ---
+  if (pathname === "/notebook" && req.method === "GET") {
+    const data = await loadNotebook();
+    return jsonResponse({ success: true, data });
+  }
+
+  // --- ROUTE: POST /notebook/receipt --- (Thêm hóa đơn lẻ)
+  if (pathname === "/notebook/receipt" && req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Chỉ người quản lý mới có quyền thao tác." }, 401);
+      }
+
+      let amount = null;
+      if (body.amount !== undefined && body.amount !== null && String(body.amount).trim() !== "") {
+        amount = Number(body.amount);
+        if (!Number.isFinite(amount) || amount < 0) {
+          return jsonResponse({ success: false, error: "Số tiền không hợp lệ" }, 400);
+        }
+      }
+
+      let receiptId = null;
+      let receiptMime = null;
+      if (body.receiptBase64 && typeof body.receiptBase64 === "string") {
+        const saved = await saveReceiptBase64(body.receiptBase64);
+        receiptId = saved.receiptId;
+        receiptMime = saved.receiptMime;
+      }
+
+      const now = new Date().toISOString();
+      const item = {
+        id: "nb_rcp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        title: String(body.title || "").trim() || "Hóa đơn",
+        vendor: String(body.vendor || "").trim(),
+        category: String(body.category || "").trim(),
+        amount,
+        date: body.date || now.split("T")[0],
+        note: String(body.note || "").trim(),
+        receiptId,
+        receiptMime,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const notebook = await loadNotebook();
+      notebook.receipts.unshift(item);
+      await saveNotebook(notebook);
+
+      return jsonResponse({ success: true, item, data: notebook });
+    } catch (err) {
+      console.error("Error adding notebook receipt:", err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // --- ROUTE: PUT /notebook/receipt --- (Sửa hóa đơn lẻ)
+  if (pathname === "/notebook/receipt" && req.method === "PUT") {
+    try {
+      const body = await req.json();
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Chỉ người quản lý mới có quyền thao tác." }, 401);
+      }
+
+      const notebook = await loadNotebook();
+      const target = notebook.receipts.find((item) => item.id === body.id);
+      if (!target) {
+        return jsonResponse({ success: false, error: "Không tìm thấy hóa đơn cần sửa" }, 404);
+      }
+
+      if (body.amount !== undefined) {
+        if (body.amount === null || String(body.amount).trim() === "") {
+          target.amount = null;
+        } else {
+          const amount = Number(body.amount);
+          if (!Number.isFinite(amount) || amount < 0) {
+            return jsonResponse({ success: false, error: "Số tiền không hợp lệ" }, 400);
+          }
+          target.amount = amount;
+        }
+      }
+
+      if (body.title !== undefined) target.title = String(body.title || "").trim() || "Hóa đơn";
+      if (body.vendor !== undefined) target.vendor = String(body.vendor || "").trim();
+      if (body.category !== undefined) target.category = String(body.category || "").trim();
+      if (body.note !== undefined) target.note = String(body.note || "").trim();
+      if (body.date) target.date = body.date;
+
+      if (body.receiptBase64 && typeof body.receiptBase64 === "string") {
+        const oldReceiptId = target.receiptId;
+        const saved = await saveReceiptBase64(body.receiptBase64);
+        target.receiptId = saved.receiptId;
+        target.receiptMime = saved.receiptMime;
+        if (oldReceiptId && oldReceiptId !== target.receiptId) await deleteReceiptBlob(oldReceiptId);
+      } else if (body.removeReceipt) {
+        await deleteReceiptBlob(target.receiptId);
+        target.receiptId = null;
+        target.receiptMime = null;
+      }
+
+      target.updatedAt = new Date().toISOString();
+      await saveNotebook(notebook);
+
+      return jsonResponse({ success: true, item: target, data: notebook });
+    } catch (err) {
+      console.error("Error updating notebook receipt:", err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // --- ROUTE: DELETE /notebook/receipt ---
+  if (pathname === "/notebook/receipt" && req.method === "DELETE") {
+    try {
+      if (!checkAuth()) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Vui lòng mở khóa trước." }, 401);
+      }
+      const id = url.searchParams.get("id");
+      if (!id) return jsonResponse({ success: false, error: "Thiếu ID hóa đơn" }, 400);
+
+      const notebook = await loadNotebook();
+      const target = notebook.receipts.find((item) => item.id === id);
+      if (!target) {
+        return jsonResponse({ success: false, error: "Không tìm thấy hóa đơn" }, 404);
+      }
+
+      await deleteReceiptBlob(target.receiptId);
+      notebook.receipts = notebook.receipts.filter((item) => item.id !== id);
+      await saveNotebook(notebook);
+
+      return jsonResponse({ success: true, data: notebook });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // --- ROUTE: POST /notebook/contact --- (Thêm thông tin)
+  if (pathname === "/notebook/contact" && req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Chỉ người quản lý mới có quyền thao tác." }, 401);
+      }
+
+      const name = String(body.name || "").trim();
+      if (!name) {
+        return jsonResponse({ success: false, error: "Vui lòng nhập tên người / nơi lưu thông tin" }, 400);
+      }
+
+      const now = new Date().toISOString();
+      const item = {
+        id: "nb_ct_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        name,
+        role: String(body.role || "").trim(),
+        phone: String(body.phone || "").trim(),
+        address: String(body.address || "").trim(),
+        note: String(body.note || "").trim(),
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const notebook = await loadNotebook();
+      notebook.contacts.unshift(item);
+      await saveNotebook(notebook);
+
+      return jsonResponse({ success: true, item, data: notebook });
+    } catch (err) {
+      console.error("Error adding notebook contact:", err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // --- ROUTE: PUT /notebook/contact ---
+  if (pathname === "/notebook/contact" && req.method === "PUT") {
+    try {
+      const body = await req.json();
+      if (!checkAuth(body.pin)) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Chỉ người quản lý mới có quyền thao tác." }, 401);
+      }
+
+      const notebook = await loadNotebook();
+      const target = notebook.contacts.find((item) => item.id === body.id);
+      if (!target) {
+        return jsonResponse({ success: false, error: "Không tìm thấy thông tin cần sửa" }, 404);
+      }
+
+      if (body.name !== undefined) {
+        const name = String(body.name || "").trim();
+        if (!name) {
+          return jsonResponse({ success: false, error: "Vui lòng nhập tên người / nơi lưu thông tin" }, 400);
+        }
+        target.name = name;
+      }
+      if (body.role !== undefined) target.role = String(body.role || "").trim();
+      if (body.phone !== undefined) target.phone = String(body.phone || "").trim();
+      if (body.address !== undefined) target.address = String(body.address || "").trim();
+      if (body.note !== undefined) target.note = String(body.note || "").trim();
+      target.updatedAt = new Date().toISOString();
+
+      await saveNotebook(notebook);
+      return jsonResponse({ success: true, item: target, data: notebook });
+    } catch (err) {
+      console.error("Error updating notebook contact:", err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // --- ROUTE: DELETE /notebook/contact ---
+  if (pathname === "/notebook/contact" && req.method === "DELETE") {
+    try {
+      if (!checkAuth()) {
+        return jsonResponse({ success: false, error: "Mã PIN không đúng! Vui lòng mở khóa trước." }, 401);
+      }
+      const id = url.searchParams.get("id");
+      if (!id) return jsonResponse({ success: false, error: "Thiếu ID thông tin" }, 400);
+
+      const notebook = await loadNotebook();
+      notebook.contacts = notebook.contacts.filter((item) => item.id !== id);
+      await saveNotebook(notebook);
+
+      return jsonResponse({ success: true, data: notebook });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
 
   // --- ROUTE: POST /verify-pin ---
   if (pathname === "/verify-pin" && req.method === "POST") {
